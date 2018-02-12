@@ -1,0 +1,8 @@
+.vscode
+*.jpg
+*.png
+checkpoints/
+shape_predictor_68_face_landmarks.dat
+YOLO_tiny.ckpt
+__pycache__/
+YOLO_face.*
