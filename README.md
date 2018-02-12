@@ -223,3 +223,9 @@ To monitor the fine-tuning of an inception model, the call is much the same.  Ju
 ```
 $ python eval.py  --run_id 8128 --train_dir /home/dpressel/dev/work/AgeGenderDeepLearning/Folds/tf/age_test_fold_is_0/ --eval_dir /home/dpressel/dev/work/AgeGenderDeepLearning/Folds/tf/eval_age_test_fold_is_0 --model_type inception
 ```
+
+### copyright
+
+* MIT
+  * [sugyan/face-detector](https://github.com/sugyan/face-detector)
+    * inspired for image rotation code

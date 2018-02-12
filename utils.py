@@ -170,6 +170,30 @@ def make_multi_image_batch(filenames, coder, number_of_images):
 
     return image_batch
 
+def make_multi_image_batch_raw(face_images, coder, number_of_images):
+    """Process a multi-image batch, each with a single-look
+    Args:
+    filenames: list of paths
+    coder: instance of ImageCoder to provide TensorFlow image coding utils.
+    Returns:
+    image_buffer: string, JPEG encoding of RGB image.
+    """
+    images = []
+    coder.num_img = number_of_images
+    for face_image in face_images:
+        with tf.gfile.FastGFile(filename, 'rb') as f:
+            image_data = f.read()
+            # Convert any PNG to JPEG's for consistency.
+            if _is_png(filename):
+                print('Converting PNG to JPEG for %s' % filename)
+                image_data = coder.png_to_jpeg(image_data)
+
+            image = coder.decode_jpeg(image_data, 'single')
+            images.append(image)
+    image_batch = coder.run_stack(images)
+
+    return image_batch
+
 def make_multi_crop_batch(filename, coder):
     """Process a single image file.
     Args:
@@ -191,15 +215,15 @@ def make_multi_crop_batch(filename, coder):
 
     return image
 
-def face_detection_model(model_type, model_path):
+def face_detection_model(model_type, model_path, tgtdir="."):
     model_type_lc = model_type.lower()
     if model_type_lc == 'yolo_tiny':
         from yolodetect import PersonDetectorYOLOTiny
-        return PersonDetectorYOLOTiny(model_path)
+        return PersonDetectorYOLOTiny(model_path, tgtdir=tgtdir)
     elif model_type_lc == 'yolo_face':
         from yolodetect import FaceDetectorYOLO
-        return FaceDetectorYOLO(model_path)
+        return FaceDetectorYOLO(model_path, tgtdir=tgtdir)
     elif model_type == 'dlib':
         from dlibdetect import FaceDetectorDlib
         return FaceDetectorDlib(model_path)
-    return ObjectDetectorCascadeOpenCV(model_path)
+    return ObjectDetectorCascadeOpenCV(model_path, tgtdir=tgtdir)
