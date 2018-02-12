@@ -64,18 +64,18 @@ def resolve_file(fname):
 
 def classify_many_single_crop(sess, label_list, softmax_output, coder, images, image_files, writer):
     try:
-        num_batches = math.ceil(len(image_files) / MAX_BATCH_SZ)	
+        num_batches = math.ceil(len(image_files) / MAX_BATCH_SZ)
         pg = ProgressBar(int(num_batches))
         for j in range(int(num_batches)):
-	    start_offset = j * MAX_BATCH_SZ
+            start_offset = j * MAX_BATCH_SZ
             end_offset = min((j + 1) * MAX_BATCH_SZ, len(image_files))
-            
+
             batch_image_files = image_files[start_offset:end_offset]
             print(start_offset, end_offset, len(batch_image_files))
             image_batch = make_multi_image_batch(batch_image_files, coder, len(batch_image_files))
             batch_results = sess.run(softmax_output, feed_dict={images:image_batch})
             batch_sz = batch_results.shape[0]
-	    for i in range(batch_sz):
+            for i in range(batch_sz):
                 output_i = batch_results[i]
                 best_i = np.argmax(output_i)
                 best_choice = (label_list[best_i], output_i[best_i])
@@ -97,15 +97,15 @@ def classify_one_multi_crop(sess, label_list, softmax_output, coder, images, ima
         batch_results = sess.run(softmax_output, feed_dict={images:image_batch})
         output = batch_results[0]
         batch_sz = batch_results.shape[0]
-    
+
         for i in range(1, batch_sz):
             output = output + batch_results[i]
-        
+
         output /= batch_sz
         best = np.argmax(output)
         best_choice = (label_list[best], output[best])
         print('Guess @ 1 %s, prob = %.2f' % best_choice)
-    
+
         nlabels = len(label_list)
         if nlabels > 2:
             output[best] = 0
@@ -125,13 +125,13 @@ def list_images(srcfile):
         if srcfile.endswith('.csv') or srcfile.endswith('.tsv'):
             print('skipping header')
             _ = next(reader)
-        
+
         return [row[0] for row in reader]
 
 def main(argv=None):  # pylint: disable=unused-argument
 
     files = []
-    
+
     if FLAGS.face_detection_model:
         print('Using face detector (%s) %s' % (FLAGS.face_detection_type, FLAGS.face_detection_model))
         face_detect = face_detection_model(FLAGS.face_detection_type, FLAGS.face_detection_model)
@@ -149,20 +149,20 @@ def main(argv=None):  # pylint: disable=unused-argument
         model_fn = select_model(FLAGS.model_type)
 
         with tf.device(FLAGS.device_id):
-            
+
             images = tf.placeholder(tf.float32, [None, RESIZE_FINAL, RESIZE_FINAL, 3])
             logits = model_fn(nlabels, images, 1, False)
             init = tf.global_variables_initializer()
-            
+
             requested_step = FLAGS.requested_step if FLAGS.requested_step else None
-        
+
             checkpoint_path = '%s' % (FLAGS.model_dir)
 
             model_checkpoint_path, global_step = get_checkpoint(checkpoint_path, requested_step, FLAGS.checkpoint)
-            
+
             saver = tf.train.Saver()
             saver.restore(sess, model_checkpoint_path)
-                        
+
             softmax_output = tf.nn.softmax(logits)
 
             coder = ImageCoder()
@@ -172,7 +172,7 @@ def main(argv=None):  # pylint: disable=unused-argument
                 if (os.path.isdir(FLAGS.filename)):
                     for relpath in os.listdir(FLAGS.filename):
                         abspath = os.path.join(FLAGS.filename, relpath)
-                        
+
                         if os.path.isfile(abspath) and any([abspath.endswith('.' + ty) for ty in ('jpg', 'png', 'JPG', 'PNG', 'jpeg')]):
                             print(abspath)
                             files.append(abspath)
@@ -181,7 +181,7 @@ def main(argv=None):  # pylint: disable=unused-argument
                     # If it happens to be a list file, read the list and clobber the files
                     if any([FLAGS.filename.endswith('.' + ty) for ty in ('csv', 'tsv', 'txt')]):
                         files = list_images(FLAGS.filename)
-                
+
             writer = None
             output = None
             if FLAGS.target:
@@ -197,9 +197,9 @@ def main(argv=None):  # pylint: disable=unused-argument
             else:
                 for image_file in image_files:
                     classify_one_multi_crop(sess, label_list, softmax_output, coder, images, image_file, writer)
-		    
+
             if output is not None:
                 output.close()
-        
+
 if __name__ == '__main__':
     tf.app.run()

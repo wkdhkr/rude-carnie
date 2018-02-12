@@ -54,19 +54,19 @@ class ProgressBar(object):
         self.update(step=0)
         print('')
 
-# Read image files            
+# Read image files
 class ImageCoder(object):
-    
+
     def __init__(self):
         # Create a single Session to run all image coding calls.
         config = tf.ConfigProto(allow_soft_placement=True)
         self._sess = tf.Session(config=config)
-        
+
         # Initializes function that converts PNG to JPEG data.
         self._png_data = tf.placeholder(dtype=tf.string)
         image = tf.image.decode_png(self._png_data, channels=3)
         self._png_to_jpeg = tf.image.encode_jpeg(image, format='rgb', quality=100)
-        
+
         # Initializes function that decodes RGB JPEG data.
         self._decode_jpeg_data = tf.placeholder(dtype=tf.string)
         self._decode_jpeg = tf.image.decode_jpeg(self._decode_jpeg_data, channels=3)
@@ -75,37 +75,37 @@ class ImageCoder(object):
         ''' Added to handle memory leak-single look '''
         self.crop_image = tf.image.resize_images(self.crop, (RESIZE_FINAL, RESIZE_FINAL))
         self.image_standradisation = tf.image.per_image_standardization(self.crop_image)
-	    self.num_img = None
+        self.num_img = None
         self.images_single = tf.placeholder(dtype=tf.float32, shape=(self.num_img, 227, 227, 3))
         self.image_batch_single = tf.stack(self.images_single)
-	       
-        '''Added to handle memory leak-multi look'''                
+
+        '''Added to handle memory leak-multi look'''
         self.standardize_image_holder = tf.placeholder(dtype=tf.float32, shape=(227, 227, 3))
         self.flipped_image_holder = tf.placeholder(dtype=tf.float32, shape=(227, 227, 3))
 
         self.image_standradisation_multi = tf.image.per_image_standardization(self.standardize_image_holder)
         self.flipped_img_multi = tf.image.flip_left_right(self.flipped_image_holder)
-        
+
         self.ch = tf.placeholder(tf.int32)
         self.cw = tf.placeholder(tf.int32)
-        
+
         self.cropped_boundingbox = tf.image.crop_to_bounding_box(self.crop, self.ch, self.cw, RESIZE_FINAL, RESIZE_FINAL)
-        
+
         self.images_multi = tf.placeholder(dtype=tf.float32, shape=(12, 227, 227, 3))
         self.image_batch_mult = tf.stack(self.images_multi)
-    
+
     def run_stack(self, images_array):
-    	return self._sess.run(self.image_batch_single, feed_dict={self.images_single: images_array})   
-	    
+        return self._sess.run(self.image_batch_single, feed_dict={self.images_single: images_array})
+
     def png_to_jpeg(self, image_data):
         return self._sess.run(self._png_to_jpeg,
                               feed_dict={self._png_data: image_data})
-        
+
     def decode_jpeg(self, image_data, look):
         if look == 'single':
             return self._sess.run(self.image_standradisation, #self._decode_jpeg,
                                    feed_dict={self._decode_jpeg_data: image_data})
-                    
+
         elif look == 'multi':
             image = self._sess.run(self.crop, #self._decode_jpeg,
                                feed_dict={self._decode_jpeg_data: image_data})
@@ -131,11 +131,11 @@ class ImageCoder(object):
                 crops.append(flippedImage_2)
 
             return self._sess.run(self.image_batch_mult, feed_dict={self.images_multi: crops})
-            
+
         assert len(image.shape) == 3
         assert image.shape[2] == 3
         return image
-        
+
 
 def _is_png(filename):
     """Determine if a file contains a PNG format image.
@@ -145,7 +145,7 @@ def _is_png(filename):
     boolean indicating if the image is a PNG.
     """
     return '.png' in filename
-        
+
 def make_multi_image_batch(filenames, coder, number_of_images):
     """Process a multi-image batch, each with a single-look
     Args:
@@ -157,17 +157,17 @@ def make_multi_image_batch(filenames, coder, number_of_images):
     images = []
     coder.num_img = number_of_images
     for filename in filenames:
-    	with tf.gfile.FastGFile(filename, 'rb') as f:
-                image_data = f.read()
+        with tf.gfile.FastGFile(filename, 'rb') as f:
+            image_data = f.read()
             # Convert any PNG to JPEG's for consistency.
             if _is_png(filename):
                 print('Converting PNG to JPEG for %s' % filename)
                 image_data = coder.png_to_jpeg(image_data)
-        
+
             image = coder.decode_jpeg(image_data, 'single')
             images.append(image)
-    image_batch = coder.run_stack(images) 
-    
+    image_batch = coder.run_stack(images)
+
     return image_batch
 
 def make_multi_crop_batch(filename, coder):
@@ -186,10 +186,10 @@ def make_multi_crop_batch(filename, coder):
     if _is_png(filename):
         print('Converting PNG to JPEG for %s' % filename)
         image_data = coder.png_to_jpeg(image_data)
-    
+
     image = coder.decode_jpeg(image_data, 'multi')
 
-    return image   
+    return image
 
 def face_detection_model(model_type, model_path):
     model_type_lc = model_type.lower()
