@@ -2,7 +2,7 @@ import math
 from math import sin, cos
 import numpy as np
 import cv2
-FACE_PAD = 5
+FACE_PAD = 50
 
 class ObjectDetector(object):
     def __init__(self):
@@ -23,7 +23,7 @@ class ObjectDetectorCascadeOpenCV(ObjectDetector):
         self.basename = basename
         self.face_cascade = cv2.CascadeClassifier(model_name)
 
-    def run_raw(self, img, deduped_results=[], is_crop_only=False):
+    def run_profile_raw(self, img, deduped_results=[], is_crop_only=False):
         shape = img.shape
         # max_size = 20000
         # if max(shape[0], shape[1]) > max_size:
@@ -55,6 +55,7 @@ class ObjectDetectorCascadeOpenCV(ObjectDetector):
             for i, (x, y, w, h) in enumerate(faces):
                 # TODO: size limitation
                 results.append({
+                    'direct': 'profile',
                     'angle': angle,
                     'center': translate([x + w * 0.5, y + h * 0.5], -angle),
                     'w': float(w) / float(cols) * 100.0,

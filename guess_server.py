@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import base64
 from datetime import datetime
 import math
 import time
@@ -13,6 +14,7 @@ from utils import *
 import os
 import json
 import csv
+import re
 
 from flask import Flask, request, Response, jsonify
 
@@ -22,6 +24,9 @@ RESIZE_FINAL = 227
 GENDER_LIST =['M','F']
 AGE_LIST = ['(0, 2)','(4, 6)','(8, 12)','(15, 20)','(25, 32)','(38, 43)','(48, 53)','(60, 100)']
 MAX_BATCH_SZ = 128
+
+tf.app.flags.DEFINE_integer('port', '5001',
+                           'flask http server port number')
 
 tf.app.flags.DEFINE_string('model_dir', '',
                            'Model directory (where training data lives)')
@@ -93,6 +98,7 @@ def classify_many_single_crop_server(sess, label_list, softmax_output, coder, im
 
 def main(argv=None):  # pylint: disable=unused-argument
 
+    port_number = FLAGS.port
     config = tf.ConfigProto(allow_soft_placement=True)
     with tf.Session(config=config) as sess:
 
@@ -121,21 +127,91 @@ def main(argv=None):  # pylint: disable=unused-argument
 
             coder = ImageCoder()
 
-            @app.route('/facecheck', methods=['POST'])
-            def image():
+            @app.route('/face/predict', methods=['POST'])
+            def predict():
+                image_items = json.loads(request.form.get("data_set"))
+                required_class = request.form.getlist("class")
+                no_data_flag = request.form.get("no_data")
+
+                image_files = []
+                item_by_id = {}
+                i = 0
+                for image_item in image_items:
+                    i = i + 1
+                    id = i
+                    if "id" in item_by_id:
+                        id = image_item["id"]
+                    # TODO: folder
+                    file_path = "received-frontal-face-%d.jpg" % id
+                    write_base64_jpeg_file(file_path, image_item["data"])
+                    image_files.append(file_path)
+                    item_by_id[id] = image_item
+
+                results = classify_many_single_crop_server(sess, label_list, softmax_output, coder, images, image_files)
+                final_results = []
+                for result in results:
+                    append_flag = True
+                    if (len(required_class) and result[1] not in required_class):
+                        append_flag = False
+                    if append_flag:
+                        head, tail = os.path.split(result[0])
+                        id = int(re.search("\\d+", tail).group(0))
+                        res = {
+                            "id": id,
+                            "prediction": result[1],
+                            "score": result[2],
+                        }
+                        if "prediction" in item_by_id[id]:
+                            res["prev_prediction"] = item_by_id[id]["prediction"]
+                        if "direct" in item_by_id[id]:
+                            res["direct"] = item_by_id[id]["direct"]
+                        if not no_data_flag:
+                            with open(result[0], 'rb') as f:
+                                res["data"] = base64.b64encode(f.read()).decode("utf-8")
+                        final_results.append(res)
+                return jsonify(final_results)
+
+            @app.route('/face/detect', methods=['POST'])
+            def detect():
                 i = request.files['image']
+                required_class = request.form.getlist("class")
+                no_data_flag = request.form.get("no_data")
+
                 data = np.fromstring(i.stream.read(), np.uint8)
                 img = cv2.imdecode(data, cv2.IMREAD_COLOR)
                 face_detect_dlib = face_detection_model("dlib", "shape_predictor_68_face_landmarks.dat")
                 face_detect_cv = face_detection_model("", "haarcascade_profileface.xml")
 
-                results = face_detect_cv.run_raw(img, [], True)
+                results = face_detect_cv.run_profile_raw(img, [], True)
                 image_files = face_detect_dlib.run_raw(img, results)
 
                 results = classify_many_single_crop_server(sess, label_list, softmax_output, coder, images, image_files)
-                return jsonify(results)
+                final_results = []
+                i = 1
+                for result in results:
+                    append_flag = True
+                    if (len(required_class) and result[1] not in required_class):
+                        append_flag = False
+                    if append_flag:
+                        direct = "frontal"
+                        head, tail = os.path.split(result[0])
+                        if "profile" in tail:
+                            direct = "profile"
+                        res = {
+                            "id": i,
+                            "direct": direct,
+                            "prediction": result[1],
+                            "score": result[2]
+                        }
+                        if not no_data_flag:
+                            with open(result[0], 'rb') as f:
+                                res["data"] = base64.b64encode(f.read()).decode("utf-8")
+                        final_results.append(res)
+                    i = i + 1
+                return jsonify(final_results)
 
-            app.run(debug=True, host='0.0.0.0', port=5001)
+            app.run(debug=True, host='0.0.0.0', port=port_number)
+
 
 if __name__ == '__main__':
     tf.app.run()

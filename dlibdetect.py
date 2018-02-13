@@ -1,5 +1,7 @@
 from detect import ObjectDetector
 
+from functools import reduce
+import asyncio
 import math
 from math import sin, cos
 import numpy as np
@@ -16,10 +18,11 @@ class FaceDetectorDlib(ObjectDetector):
 
     def run_raw(self, img, deduped_results=[], is_crop_only=False):
         shape = img.shape
-        # max_size = 20000
-        # if max(shape[0], shape[1]) > max_size:
-        #     l = max(shape[0], shape[1])
-        #     img = cv2.resize(img, (int(shape[1] * max_size / l), int(shape[0] * max_size / l)))
+        max_size = 1920
+        # TODO: cause detect min image size
+        if max(shape[0], shape[1]) > max_size:
+            l = max(shape[0], shape[1])
+            img = cv2.resize(img, (int(shape[1] * max_size / l), int(shape[0] * max_size / l)))
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         # detect fliped or sideways face
         rows, cols, _ = img.shape
@@ -46,6 +49,7 @@ class FaceDetectorDlib(ObjectDetector):
                 h = rect.bottom() - y
                 # TODO: size limitation
                 results.append({
+                    'direct': 'frontal',
                     'angle': angle,
                     'center': translate([x + w * 0.5, y + h * 0.5], -angle),
                     'w': float(w) / float(cols) * 100.0,
@@ -67,7 +71,7 @@ class FaceDetectorDlib(ObjectDetector):
                 ):
                     print(face)
                     exists = True
-                    if abs(result['angle']) > abs(face['angle']):
+                    if abs(result['angle']) <= abs(face['angle']):
                         deduped_results[i] = result
                         break
             if not exists:
@@ -88,9 +92,12 @@ class FaceDetectorDlib(ObjectDetector):
             M = cv2.getRotationMatrix2D((hypot * 0.5, hypot * 0.5), deduped_result['angle'], 1.0)
             rotated_img = cv2.warpAffine(color_frame, M, (hypot, hypot))
             i = i + 1
+            name_prefix = self.basename
+            if deduped_result["direct"] is "profile":
+                name_prefix = "profile"
             images.append(
                 self.sub_image(
-                    '%s/%s-%d.jpg' % (self.tgtdir, self.basename, i),
+                    '%s/%s-%d.jpg' % (self.tgtdir, name_prefix, i),
                     rotated_img,
                     deduped_result['ax'],
                     deduped_result['ay'],

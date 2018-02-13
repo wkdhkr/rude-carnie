@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import six.moves
 from datetime import datetime
+import base64
 import sys
 import math
 import time
@@ -227,3 +228,8 @@ def face_detection_model(model_type, model_path, tgtdir="."):
         from dlibdetect import FaceDetectorDlib
         return FaceDetectorDlib(model_path)
     return ObjectDetectorCascadeOpenCV(model_path, tgtdir=tgtdir)
+
+def write_base64_jpeg_file(file_path, image_64_encode):
+    image_64_decode = base64.decodestring(image_64_encode.encode("utf-8"))
+    with open(file_path, 'wb') as f:
+        f.write(image_64_decode)
