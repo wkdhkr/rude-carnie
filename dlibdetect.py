@@ -18,7 +18,7 @@ class FaceDetectorDlib(ObjectDetector):
 
     def run_raw(self, img, deduped_results=[], is_crop_only=False):
         shape = img.shape
-        max_size = 1920
+        max_size = 1080
         # TODO: cause detect min image size
         if max(shape[0], shape[1]) > max_size:
             l = max(shape[0], shape[1])
@@ -37,7 +37,7 @@ class FaceDetectorDlib(ObjectDetector):
                 'y': (- sin(rad) * x + cos(rad) * y + hypot * 0.5 * sin(rad) - hypot * 0.5 * cos(rad) + hypot * 0.5 - (hypot - rows) * 0.5) / float(rows) * 100.0,
             }
         results = []
-        for angle in range(-90, 91, 90):
+        for angle in range(-90, 91, 45):
             M = cv2.getRotationMatrix2D((hypot * 0.5, hypot * 0.5), angle, 1.0)
             rotated_img = cv2.warpAffine(frame, M, (hypot, hypot))
             faces = self.detector(rotated_img, 1)
