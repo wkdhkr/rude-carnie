@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import uuid
 import base64
 from datetime import datetime
 import math
@@ -71,23 +72,23 @@ def resolve_file(fname):
             return cand
     return None
 
-def classify_many_single_crop_server(sess, label_list, softmax_output, coder, images, image_files, writer=None):
+def classify_many_single_crop_server(sess, label_list, softmax_output, coder, images, image_items, writer=None):
     results = []
     try:
-        num_batches = math.ceil(len(image_files) / MAX_BATCH_SZ)
+        num_batches = math.ceil(len(image_items) / MAX_BATCH_SZ)
         for j in range(int(num_batches)):
             start_offset = j * MAX_BATCH_SZ
-            end_offset = min((j + 1) * MAX_BATCH_SZ, len(image_files))
+            end_offset = min((j + 1) * MAX_BATCH_SZ, len(image_items))
 
-            batch_image_files = image_files[start_offset:end_offset]
-            image_batch = make_multi_image_batch(batch_image_files, coder, len(batch_image_files))
+            batch_image_items = image_items[start_offset:end_offset]
+            image_batch = make_multi_image_batch([x["file_path"] for x in batch_image_items], coder, len(batch_image_items))
             batch_results = sess.run(softmax_output, feed_dict={images:image_batch})
             batch_sz = batch_results.shape[0]
             for i in range(batch_sz):
                 output_i = batch_results[i]
                 best_i = np.argmax(output_i)
                 best_choice = (label_list[best_i], output_i[best_i])
-                f = batch_image_files[i]
+                f = batch_image_items[i]
                 result = (f, best_choice[0], '%.2f' % best_choice[1])
                 if writer is not None:
                     writer.writerow(result)
@@ -97,6 +98,7 @@ def classify_many_single_crop_server(sess, label_list, softmax_output, coder, im
     return results
 
 def main(argv=None):  # pylint: disable=unused-argument
+    tgtdir = "."
 
     port_number = FLAGS.port
     config = tf.ConfigProto(allow_soft_placement=True)
@@ -133,81 +135,91 @@ def main(argv=None):  # pylint: disable=unused-argument
                 required_class = request.form.getlist("class")
                 no_data_flag = request.form.get("no_data")
 
+                request_id = str(uuid.uuid4())
+
                 image_files = []
-                item_by_id = {}
                 i = 0
                 for image_item in image_items:
                     i = i + 1
-                    id = i
-                    if "id" in item_by_id:
-                        id = image_item["id"]
-                    # TODO: folder
-                    file_path = "received-frontal-face-%d.jpg" % id
-                    write_base64_jpeg_file(file_path, image_item["data"])
-                    image_files.append(file_path)
-                    item_by_id[id] = image_item
+                    id = image_item.get("id", request_id + "_" + str(i))
+                    image_item["id"] = id
+                    if "data" in image_item:
+                        new_file_path = tgtdir + "/" + ("frontal-face-%s.jpg" % id)
+                        write_base64_jpeg_file(new_file_path, image_item["data"])
+                        image_item["file_path"] = new_file_path
 
-                results = classify_many_single_crop_server(sess, label_list, softmax_output, coder, images, image_files)
+                results = classify_many_single_crop_server(
+                    sess,
+                    label_list,
+                    softmax_output,
+                    coder,
+                    images,
+                    image_items
+                )
                 final_results = []
                 for result in results:
                     append_flag = True
                     if (len(required_class) and result[1] not in required_class):
                         append_flag = False
                     if append_flag:
-                        head, tail = os.path.split(result[0])
-                        id = int(re.search("\\d+", tail).group(0))
-                        res = {
-                            "id": id,
-                            "prediction": result[1],
-                            "score": result[2],
-                        }
-                        if "prediction" in item_by_id[id]:
-                            res["prev_prediction"] = item_by_id[id]["prediction"]
-                        if "direct" in item_by_id[id]:
-                            res["direct"] = item_by_id[id]["direct"]
+                        image_item = result[0]
+                        prev_prediction = image_item.get("prediction", None)
+                        prev_score = image_item.get("score", None)
+                        image_item["prediction"] = result[1]
+                        image_item["score"] = result[2]
+                        if not prev_prediction is None:
+                            image_item["prev_prediction"] = prev_prediction
+                        if not prev_score is None:
+                            image_item["prev_score"] = prev_score
                         if not no_data_flag:
-                            with open(result[0], 'rb') as f:
-                                res["data"] = base64.b64encode(f.read()).decode("utf-8")
-                        final_results.append(res)
+                            with open(result[0]["file_path"], 'rb') as f:
+                                image_item["data"] = base64.b64encode(f.read()).decode("utf-8")
+                        else:
+                            del image_item["data"]
+                        final_results.append(image_item)
                 return jsonify(final_results)
 
             @app.route('/face/detect', methods=['POST'])
             def detect():
                 i = request.files['image']
                 required_class = request.form.getlist("class")
-                no_data_flag = request.form.get("no_data")
+                no_data_flag = bool(request.form.get("no_data"))
+                min_size = request.form.get("min_size")
+                is_original = bool(request.form.get("original"))
+
+                request_id = str(uuid.uuid4())
 
                 data = np.fromstring(i.stream.read(), np.uint8)
                 img = cv2.imdecode(data, cv2.IMREAD_COLOR)
-                face_detect_dlib = face_detection_model("dlib", "shape_predictor_68_face_landmarks.dat")
-                face_detect_cv = face_detection_model("", "haarcascade_profileface.xml")
+                face_detect_dlib = face_detection_model("dlib", "shape_predictor_68_face_landmarks.dat", tgtdir)
+                face_detect_cv = face_detection_model("", "haarcascade_profileface.xml", tgtdir)
 
-                results = face_detect_cv.run_profile_raw(img, [], True)
-                image_files = face_detect_dlib.run_raw(img, results)
+                results = face_detect_cv.run_profile_raw(img, [], True, is_original, request_id, min_size)
+                image_items = face_detect_dlib.run_raw(
+                    img,
+                    results,
+                    False,
+                    is_original,
+                    request_id,
+                    int(min_size or 0)
+                )
 
-                results = classify_many_single_crop_server(sess, label_list, softmax_output, coder, images, image_files)
+                results = classify_many_single_crop_server(
+                    sess, label_list, softmax_output, coder, images, image_items
+                )
                 final_results = []
-                i = 1
                 for result in results:
                     append_flag = True
                     if (len(required_class) and result[1] not in required_class):
                         append_flag = False
                     if append_flag:
-                        direct = "frontal"
-                        head, tail = os.path.split(result[0])
-                        if "profile" in tail:
-                            direct = "profile"
-                        res = {
-                            "id": i,
-                            "direct": direct,
-                            "prediction": result[1],
-                            "score": result[2]
-                        }
+                        item = result[0]
+                        item["prediction"] = result[1]
+                        item["score"] = result[2]
                         if not no_data_flag:
-                            with open(result[0], 'rb') as f:
-                                res["data"] = base64.b64encode(f.read()).decode("utf-8")
-                        final_results.append(res)
-                    i = i + 1
+                            with open(result[0]["file_path"], 'rb') as f:
+                                item["data"] = base64.b64encode(f.read()).decode("utf-8")
+                        final_results.append(item)
                 return jsonify(final_results)
 
             app.run(debug=True, host='0.0.0.0', port=port_number)
