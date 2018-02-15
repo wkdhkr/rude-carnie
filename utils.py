@@ -226,7 +226,7 @@ def face_detection_model(model_type, model_path, tgtdir="."):
         return FaceDetectorYOLO(model_path, tgtdir=tgtdir)
     elif model_type == 'dlib':
         from dlibdetect import FaceDetectorDlib
-        return FaceDetectorDlib(model_path)
+        return FaceDetectorDlib(model_path, tgtdir=tgtdir)
     return ObjectDetectorCascadeOpenCV(model_path, tgtdir=tgtdir)
 
 def write_base64_jpeg_file(file_path, image_64_encode):

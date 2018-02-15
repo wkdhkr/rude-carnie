@@ -29,6 +29,12 @@ MAX_BATCH_SZ = 128
 tf.app.flags.DEFINE_integer('port', '5001',
                            'flask http server port number')
 
+tf.app.flags.DEFINE_string('work_dir', '.',
+                           'Working directory')
+
+tf.app.flags.DEFINE_boolean('no_sweep', False,
+                           'Sweep working directory')
+
 tf.app.flags.DEFINE_string('model_dir', '',
                            'Model directory (where training data lives)')
 
@@ -97,8 +103,13 @@ def classify_many_single_crop_server(sess, label_list, softmax_output, coder, im
         raise e
     return results
 
+def purge(dir, pattern):
+    for f in os.listdir(dir):
+        if re.search(pattern, f):
+            os.remove(os.path.join(dir, f))
+
 def main(argv=None):  # pylint: disable=unused-argument
-    tgtdir = "."
+    tgtdir = FLAGS.work_dir
 
     port_number = FLAGS.port
     config = tf.ConfigProto(allow_soft_placement=True)
@@ -176,7 +187,11 @@ def main(argv=None):  # pylint: disable=unused-argument
                                 image_item["data"] = base64.b64encode(f.read()).decode("utf-8")
                         else:
                             del image_item["data"]
+                        if not FLAGS.no_sweep:
+                            purge(tgtdir, request_id)
                         final_results.append(image_item)
+                if not FLAGS.no_sweep:
+                    os.remove(result[0]["file_path"])
                 return jsonify(final_results)
 
             @app.route('/face/detect', methods=['POST'])
@@ -220,6 +235,8 @@ def main(argv=None):  # pylint: disable=unused-argument
                             with open(result[0]["file_path"], 'rb') as f:
                                 item["data"] = base64.b64encode(f.read()).decode("utf-8")
                         final_results.append(item)
+                if not FLAGS.no_sweep:
+                    purge(tgtdir, request_id)
                 return jsonify(final_results)
 
             app.run(debug=True, host='0.0.0.0', port=port_number)
