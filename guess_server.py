@@ -26,6 +26,9 @@ GENDER_LIST =['M','F']
 AGE_LIST = ['(0, 2)','(4, 6)','(8, 12)','(15, 20)','(25, 32)','(38, 43)','(48, 53)','(60, 100)']
 MAX_BATCH_SZ = 128
 
+tf.app.flags.DEFINE_boolean('debug', False,
+                           'debug')
+
 tf.app.flags.DEFINE_integer('port', '5001',
                            'flask http server port number')
 
@@ -190,8 +193,8 @@ def main(argv=None):  # pylint: disable=unused-argument
                         if not FLAGS.no_sweep:
                             purge(tgtdir, request_id)
                         final_results.append(image_item)
-                if not FLAGS.no_sweep:
-                    os.remove(result[0]["file_path"])
+                    if not FLAGS.no_sweep:
+                        os.remove(result[0]["file_path"])
                 return jsonify(final_results)
 
             @app.route('/face/detect', methods=['POST'])
@@ -239,7 +242,7 @@ def main(argv=None):  # pylint: disable=unused-argument
                     purge(tgtdir, request_id)
                 return jsonify(final_results)
 
-            app.run(debug=True, host='0.0.0.0', port=port_number)
+            app.run(debug=FLAGS.debug, host='0.0.0.0', port=port_number)
 
 
 if __name__ == '__main__':
