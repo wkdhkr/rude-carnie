@@ -144,6 +144,8 @@ class FaceDetectorDlib(ObjectDetector):
             original_file_path = None
             w = deduped_result['aw']
             h = deduped_result['ah']
+
+            # original
             if resize_flag:
                 M = cv2.getRotationMatrix2D(
                     (original_hypot * 0.5, original_hypot * 0.5), deduped_result['angle'], 1.0)
@@ -153,6 +155,7 @@ class FaceDetectorDlib(ObjectDetector):
                     round(rotated_img.shape[1] * deduped_result["resize_ratio_w"]))
                 h = int(
                     round(rotated_img.shape[0] * deduped_result["resize_ratio_h"]))
+
             if is_original:
                 original_file_path = self.sub_image(
                     '%s/%s-%s.jpg' % (self.tgtdir,
