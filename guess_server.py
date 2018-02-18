@@ -156,8 +156,8 @@ def main(argv=None):  # pylint: disable=unused-argument
             model_checkpoint_path, global_step = get_checkpoint(
                 checkpoint_path, requested_step, FLAGS.checkpoint)
 
-            # saver = tf.train.Saver()
-            # saver.restore(sess, model_checkpoint_path)
+            saver = tf.train.Saver()
+            saver.restore(sess, model_checkpoint_path)
 
             softmax_output = tf.nn.softmax(logits)
 
