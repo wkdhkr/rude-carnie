@@ -9,6 +9,7 @@ import dlib
 import cv2
 FACE_PAD = 5
 
+
 class FaceDetectorDlib(ObjectDetector):
     def __init__(self, model_name, basename='frontal-face', tgtdir='.'):
         self.tgtdir = tgtdir
@@ -22,29 +23,36 @@ class FaceDetectorDlib(ObjectDetector):
         deduped_results=[],
         is_crop_only=False,
         is_original=False,
-        id = "id",
+        id="id",
         min_size=0
     ):
         img = original_img
         shape = img.shape
         max_size = 1024
         resize_ratio = 1
+        resize_flag = False
         if max(shape[0], shape[1]) > max_size:
+            resize_flag = True
             l = max(shape[0], shape[1])
-            img = cv2.resize(original_img, (int(shape[1] * max_size / l), int(shape[0] * max_size / l)))
+            img = cv2.resize(
+                original_img, (int(shape[1] * max_size / l), int(shape[0] * max_size / l)))
             resize_ratio = l / max_size
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         # detect fliped or sideways face
         original_rows, original_cols, _ = original_img.shape
-        original_hypot = int(math.ceil(math.hypot(original_rows, original_cols)))
+        original_hypot = int(
+            math.ceil(math.hypot(original_rows, original_cols)))
         rows, cols, _ = img.shape
         hypot = int(math.ceil(math.hypot(rows, cols)))
 
         frame = np.zeros((hypot, hypot), np.uint8)
-        frame[int((hypot - rows) * 0.5):int((hypot + rows) * 0.5), int((hypot - cols) * 0.5):int((hypot + cols) * 0.5)] = gray
+        frame[int((hypot - rows) * 0.5):int((hypot + rows) * 0.5),
+              int((hypot - cols) * 0.5):int((hypot + cols) * 0.5)] = gray
         color_frame = np.zeros((hypot, hypot, img.shape[2]), np.uint8)
-        color_frame[int((hypot - rows) * 0.5):int((hypot + rows) * 0.5), int((hypot - cols) * 0.5):int((hypot + cols) * 0.5)] = img
-        original_color_frame = np.zeros((original_hypot, original_hypot, original_img.shape[2]), np.uint8)
+        color_frame[int((hypot - rows) * 0.5):int((hypot + rows) * 0.5),
+                    int((hypot - cols) * 0.5):int((hypot + cols) * 0.5)] = img
+        original_color_frame = np.zeros(
+            (original_hypot, original_hypot, original_img.shape[2]), np.uint8)
         original_color_frame[
             int((original_hypot - original_rows) * 0.5):int((original_hypot + original_rows) * 0.5), int((original_hypot - original_cols) * 0.5):int((original_hypot + original_cols) * 0.5)
         ] = original_img
@@ -53,16 +61,17 @@ class FaceDetectorDlib(ObjectDetector):
             x, y = coordinate
             rad = math.radians(angle)
             return {
-                'x': (  cos(rad) * x + sin(rad) * y - hypot * 0.5 * cos(rad) - hypot * 0.5 * sin(rad) + hypot * 0.5 - (hypot - cols) * 0.5) / float(cols) * 100.0,
+                'x': (cos(rad) * x + sin(rad) * y - hypot * 0.5 * cos(rad) - hypot * 0.5 * sin(rad) + hypot * 0.5 - (hypot - cols) * 0.5) / float(cols) * 100.0,
                 'y': (- sin(rad) * x + cos(rad) * y + hypot * 0.5 * sin(rad) - hypot * 0.5 * cos(rad) + hypot * 0.5 - (hypot - rows) * 0.5) / float(rows) * 100.0,
             }
         results = []
         # if set 1, 40x40 face detection chance available
         upsample_num_times = 0
-        for angle in range(-90, 91, 45):
+        for angle in range(-90, 91, 30):
             M = cv2.getRotationMatrix2D((hypot * 0.5, hypot * 0.5), angle, 1.0)
             rotated_img = cv2.warpAffine(frame, M, (hypot, hypot))
-            faces, scores, types = self.detector.run(rotated_img, upsample_num_times)
+            faces, scores, types = self.detector.run(
+                rotated_img, upsample_num_times)
             for (i, rect) in enumerate(faces):
                 x = rect.left()
                 y = rect.top()
@@ -98,7 +107,8 @@ class FaceDetectorDlib(ObjectDetector):
                 face = deduped_results[i]
                 if (
                     face['center']['x'] - face['w'] * 0.5 < x < face['center']['x'] + face['w'] * 0.5 and
-                    face['center']['y'] - face['h'] * 0.5 < y < face['center']['y'] + face['h'] * 0.5
+                    face['center']['y'] - face['h'] *
+                        0.5 < y < face['center']['y'] + face['h'] * 0.5
                 ):
                     exists = True
                     # if result.get("dlib_score", 0) < face.get("dlib_score", 0):
@@ -120,7 +130,8 @@ class FaceDetectorDlib(ObjectDetector):
             i = i + 1
             full_id = id + "_" + str(i)
             name_prefix = self.basename
-            M = cv2.getRotationMatrix2D((hypot * 0.5, hypot * 0.5), deduped_result['angle'], 1.0)
+            M = cv2.getRotationMatrix2D(
+                (hypot * 0.5, hypot * 0.5), deduped_result['angle'], 1.0)
             rotated_img = cv2.warpAffine(color_frame, M, (hypot, hypot))
             file_path = self.sub_image(
                 '%s/%s-%s.jpg' % (self.tgtdir, name_prefix, full_id),
@@ -133,16 +144,24 @@ class FaceDetectorDlib(ObjectDetector):
             original_file_path = None
             w = deduped_result['aw']
             h = deduped_result['ah']
+            if resize_flag:
+                M = cv2.getRotationMatrix2D(
+                    (original_hypot * 0.5, original_hypot * 0.5), deduped_result['angle'], 1.0)
+                rotated_img = cv2.warpAffine(
+                    original_color_frame, M, (original_hypot, original_hypot))
+                w = int(
+                    round(rotated_img.shape[1] * deduped_result["resize_ratio_w"]))
+                h = int(
+                    round(rotated_img.shape[0] * deduped_result["resize_ratio_h"]))
             if is_original:
-                M = cv2.getRotationMatrix2D((original_hypot * 0.5, original_hypot * 0.5), deduped_result['angle'], 1.0)
-                rotated_img = cv2.warpAffine(original_color_frame, M, (original_hypot, original_hypot))
-                w = int(round(rotated_img.shape[1] * deduped_result["resize_ratio_w"]))
-                h = int(round(rotated_img.shape[0] * deduped_result["resize_ratio_h"]))
                 original_file_path = self.sub_image(
-                    '%s/%s-%s.jpg' % (self.tgtdir, "original_" + name_prefix, full_id),
+                    '%s/%s-%s.jpg' % (self.tgtdir,
+                                      "original_" + name_prefix, full_id),
                     rotated_img,
-                    int(round(rotated_img.shape[1] * deduped_result["resize_ratio_x"])),
-                    int(round(rotated_img.shape[0] * deduped_result["resize_ratio_y"])),
+                    int(round(rotated_img.shape[1] *
+                              deduped_result["resize_ratio_x"])),
+                    int(round(rotated_img.shape[0] *
+                              deduped_result["resize_ratio_y"])),
                     w,
                     h
                 )
@@ -177,8 +196,9 @@ class FaceDetectorDlib(ObjectDetector):
             y = rect.top()
             w = rect.right() - x
             h = rect.bottom() - y
-            bb.append((x,y,w,h))
-            images.append(self.sub_image('%s/%s-%d.jpg' % (self.tgtdir, self.basename, i + 1), img, x, y, w, h))
+            bb.append((x, y, w, h))
+            images.append(self.sub_image('%s/%s-%d.jpg' %
+                                         (self.tgtdir, self.basename, i + 1), img, x, y, w, h))
 
         print('%d faces detected' % len(images))
 
@@ -191,12 +211,15 @@ class FaceDetectorDlib(ObjectDetector):
 
     def sub_image(self, name, img, x, y, w, h):
         # remove black margin
-        upper_cut = [min(img.shape[0], y + h + FACE_PAD), min(img.shape[1], x + w + FACE_PAD)]
+        upper_cut = [min(img.shape[0], y + h + FACE_PAD),
+                     min(img.shape[1], x + w + FACE_PAD)]
         lower_cut = [max(y - FACE_PAD, 0), max(x - FACE_PAD, 0)]
-        roi_color = img[round(lower_cut[0]):round(upper_cut[0]), round(lower_cut[1]):round(upper_cut[1])]
+        roi_color = img[round(lower_cut[0]):round(
+            upper_cut[0]), round(lower_cut[1]):round(upper_cut[1])]
         final_gray = cv2.cvtColor(roi_color, cv2.COLOR_BGR2GRAY)
         ret, thresh = cv2.threshold(final_gray, 1, 255, cv2.THRESH_BINARY)
-        contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = cv2.findContours(
+            thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cnt = contours[0]
         x, y, w, h = cv2.boundingRect(cnt)
         crop = roi_color[y:y+h, x:x+w]
@@ -204,6 +227,8 @@ class FaceDetectorDlib(ObjectDetector):
         return name
 
     def draw_rect(self, img, x, y, w, h):
-        upper_cut = [min(img.shape[0], y + h + FACE_PAD), min(img.shape[1], x + w + FACE_PAD)]
+        upper_cut = [min(img.shape[0], y + h + FACE_PAD),
+                     min(img.shape[1], x + w + FACE_PAD)]
         lower_cut = [max(y - FACE_PAD, 0), max(x - FACE_PAD, 0)]
-        cv2.rectangle(img, (lower_cut[1], lower_cut[0]), (upper_cut[1], upper_cut[0]), (255, 0, 0), 2)
+        cv2.rectangle(img, (lower_cut[1], lower_cut[0]),
+                      (upper_cut[1], upper_cut[0]), (255, 0, 0), 2)
