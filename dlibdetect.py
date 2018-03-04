@@ -71,7 +71,7 @@ class FaceDetectorDlib(ObjectDetector):
             M = cv2.getRotationMatrix2D((hypot * 0.5, hypot * 0.5), angle, 1.0)
             rotated_img = cv2.warpAffine(frame, M, (hypot, hypot))
             faces, scores, types = self.detector.run(
-                rotated_img, upsample_num_times)
+                rotated_img, upsample_num_times, 0.15)
             for (i, rect) in enumerate(faces):
                 x = rect.left()
                 y = rect.top()
