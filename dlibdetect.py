@@ -181,8 +181,8 @@ class FaceDetectorDlib(ObjectDetector):
                 'dlib_score': deduped_result.get("dlib_score", None),
                 'direct': deduped_result["direct"],
                 'angle': deduped_result["angle"],
-                'width': w,
-                'height': h
+                'width': int(w),
+                'height': int(h)
             }
             images.append(image)
         return images
